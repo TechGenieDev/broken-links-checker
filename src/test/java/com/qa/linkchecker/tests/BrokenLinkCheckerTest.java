@@ -1,13 +1,10 @@
 package com.qa.linkchecker.tests;
 
 import com.qa.linkchecker.model.LinkResult;
-import com.qa.linkchecker.utils.ConfigReader;
-import com.qa.linkchecker.utils.DriverManager;
-import com.qa.linkchecker.utils.ExcelReader;
-import com.qa.linkchecker.utils.ExcelReportWriter;
-import com.qa.linkchecker.utils.LinkValidator;
+import com.qa.linkchecker.utils.*;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -114,7 +111,7 @@ public class BrokenLinkCheckerTest {
 
                 if (!checkExternal && isExternal(pageUrl, linkUrl)) {
                     pageResults.add(new LinkResult(pageUrl, linkText, linkUrl, -1, "SKIPPED",
-                            "External link skipped (check.external.links=false)", 0));
+                            "External link skipped (check.external.links=false)", 0, ResourceType.LINK.name()));
                     continue;
                 }
 
@@ -127,15 +124,74 @@ public class BrokenLinkCheckerTest {
                 }
             }
 
+            // --- IMAGE CHECK (new) ---
+            List<LinkResult> imageResults = checkImagesOnPage(pageUrl, driver);
+            for (LinkResult ir : imageResults) {
+                if ("BROKEN".equals(ir.getStatus()) || "ERROR".equals(ir.getStatus())) {
+                    softAssert.fail("Broken image on " + pageUrl + " -> " + ir.getLinkUrl()
+                            + " [" + ir.getRemarks() + "]");
+                }
+            }
+            pageResults.addAll(imageResults);
+
         } catch (Exception e) {
             pageResults.add(new LinkResult(pageUrl, "(page load)", pageUrl, -1, "ERROR",
-                    "Failed to load page: " + e.getMessage(), 0));
+                    "Failed to load page: " + e.getMessage(), 0, ResourceType.LINK.name()));
             softAssert.fail("Could not load page " + pageUrl + ": " + e.getMessage());
         } finally {
             allResults.addAll(pageResults);
         }
 
         softAssert.assertAll();
+    }
+
+    private List<LinkResult> checkImagesOnPage(String pageUrl, WebDriver driver) {
+        List<LinkResult> imageResults = new ArrayList<>();
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+
+        List<WebElement> images = driver.findElements(By.tagName("img"));
+
+        // Dedupe by src
+        Map<String, String> uniqueImages = new LinkedHashMap<>();
+        for (WebElement img : images) {
+            String src = img.getAttribute("src");
+            if (src == null || src.isBlank()) {
+                continue;
+            }
+            String alt = img.getAttribute("alt");
+            uniqueImages.putIfAbsent(src, (alt == null || alt.isBlank()) ? "(no alt)" : alt.trim());
+        }
+
+        System.out.println("[" + pageUrl + "] " + uniqueImages.size() + " unique image(s) found");
+
+        for (Map.Entry<String, String> entry : uniqueImages.entrySet()) {
+            String src = entry.getKey();
+            String alt = entry.getValue();
+
+            // Step 1: ask the browser — did this image actually render?
+            try {
+                WebElement imgElement = driver.findElement(By.cssSelector("img[src='" + src.replace("'", "\\'") + "']"));
+                Long naturalWidth = (Long) js.executeScript("return arguments[0].naturalWidth;", imgElement);
+
+                if (naturalWidth == 0) {
+                    // Browser says broken — no need for HTTP check
+                    imageResults.add(new LinkResult(pageUrl, alt, src, -1, "BROKEN",
+                            "Image failed to render (naturalWidth=0)", 0, "IMAGE"));
+                    continue;
+                }
+            } catch (Exception e) {
+                // Element gone stale or not found — fall through to HTTP check
+            }
+
+            // Step 2: HTTP check (same as links)
+            LinkResult result = LinkValidator.validateLink(pageUrl, alt, src, config);
+            imageResults.add(new LinkResult(
+                    result.getSourcePage(), result.getLinkText(), result.getLinkUrl(),
+                    result.getStatusCode(), result.getStatus(), result.getRemarks(),
+                    result.getResponseTimeMs(), "IMAGE"));   // override resourceType
+        }
+
+        return imageResults;
     }
 
     private boolean isExternal(String pageUrl, String linkUrl) {

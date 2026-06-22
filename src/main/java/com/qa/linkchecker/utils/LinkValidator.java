@@ -23,7 +23,7 @@ public class LinkValidator {
 
         if (isSkippable(linkUrl)) {
             return new LinkResult(sourcePage, linkText, linkUrl, -1, "SKIPPED",
-                    "Non-HTTP scheme or empty link", 0);
+                    "Non-HTTP scheme or empty link", 0, ResourceType.LINK.name());
         }
 
         int connectTimeout = Integer.parseInt(config.getProperty("link.connect.timeout.ms", "8000"));
@@ -42,26 +42,26 @@ public class LinkValidator {
             long elapsed = System.currentTimeMillis() - start;
 
             if (statusCode >= 200 && statusCode < 300) {
-                return new LinkResult(sourcePage, linkText, linkUrl, statusCode, "OK", "", elapsed);
+                return new LinkResult(sourcePage, linkText, linkUrl, statusCode, "OK", "", elapsed, ResourceType.LINK.name());
             } else if (statusCode >= 300 && statusCode < 400) {
                 String status = redirectIsBroken ? "BROKEN" : "REDIRECT";
-                return new LinkResult(sourcePage, linkText, linkUrl, statusCode, status, "Redirected", elapsed);
+                return new LinkResult(sourcePage, linkText, linkUrl, statusCode, status, "Redirected", elapsed, ResourceType.LINK.name());
             } else {
-                return new LinkResult(sourcePage, linkText, linkUrl, statusCode, "BROKEN", "HTTP error", elapsed);
+                return new LinkResult(sourcePage, linkText, linkUrl, statusCode, "BROKEN", "HTTP error", elapsed, ResourceType.LINK.name());
             }
 
         } catch (UnknownHostException e) {
             return new LinkResult(sourcePage, linkText, linkUrl, -1, "ERROR",
-                    "Unknown host: " + e.getMessage(), System.currentTimeMillis() - start);
+                    "Unknown host: " + e.getMessage(), System.currentTimeMillis() - start, ResourceType.LINK.name());
         } catch (SocketTimeoutException e) {
             return new LinkResult(sourcePage, linkText, linkUrl, -1, "ERROR",
-                    "Timed out", System.currentTimeMillis() - start);
+                    "Timed out", System.currentTimeMillis() - start, ResourceType.LINK.name());
         } catch (IOException e) {
             return new LinkResult(sourcePage, linkText, linkUrl, -1, "ERROR",
-                    e.getClass().getSimpleName() + ": " + e.getMessage(), System.currentTimeMillis() - start);
+                    e.getClass().getSimpleName() + ": " + e.getMessage(), System.currentTimeMillis() - start, ResourceType.LINK.name());
         } catch (Exception e) {
             return new LinkResult(sourcePage, linkText, linkUrl, -1, "ERROR",
-                    "Unexpected error: " + e.getMessage(), System.currentTimeMillis() - start);
+                    "Unexpected error: " + e.getMessage(), System.currentTimeMillis() - start, ResourceType.LINK.name());
         }
     }
 

@@ -12,9 +12,10 @@ public class LinkResult {
     private final String status;       // OK, BROKEN, REDIRECT, SKIPPED, ERROR
     private final String remarks;
     private final long responseTimeMs;
+    private final String resourceType;
 
     public LinkResult(String sourcePage, String linkText, String linkUrl,
-                       int statusCode, String status, String remarks, long responseTimeMs) {
+                       int statusCode, String status, String remarks, long responseTimeMs, String resourceType) {
         this.sourcePage = sourcePage;
         this.linkText = linkText;
         this.linkUrl = linkUrl;
@@ -22,6 +23,7 @@ public class LinkResult {
         this.status = status;
         this.remarks = remarks;
         this.responseTimeMs = responseTimeMs;
+        this.resourceType = resourceType;
     }
 
     public String getSourcePage() {
@@ -51,4 +53,7 @@ public class LinkResult {
     public long getResponseTimeMs() {
         return responseTimeMs;
     }
+
+    public String getResourceType() {return resourceType;}
+
 }
